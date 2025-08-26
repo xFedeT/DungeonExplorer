@@ -24,3 +24,10 @@ C:\Users\tagli\RiderProjects\DungeonExplorer\obj\Debug\net8.0-windows\refint\Dun
 C:\Users\tagli\RiderProjects\DungeonExplorer\obj\Debug\net8.0-windows\DungeonExplorer.pdb
 C:\Users\tagli\RiderProjects\DungeonExplorer\obj\Debug\net8.0-windows\DungeonExplorer.genruntimeconfig.cache
 C:\Users\tagli\RiderProjects\DungeonExplorer\obj\Debug\net8.0-windows\ref\DungeonExplorer.dll
+C:\Users\tagli\RiderProjects\DungeonExplorer\obj\Debug\net8.0-windows\DungeonExplorer.sourcelink.json
+C:\Users\tagli\RiderProjects\DungeonExplorer\bin\Debug\net8.0-windows\Content\Fonts\DefaultFont.xnb
+C:\Users\tagli\RiderProjects\DungeonExplorer\bin\Debug\net8.0-windows\Content\Textures\enemy.xnb
+C:\Users\tagli\RiderProjects\DungeonExplorer\bin\Debug\net8.0-windows\Content\Textures\floor.xnb
+C:\Users\tagli\RiderProjects\DungeonExplorer\bin\Debug\net8.0-windows\Content\Textures\player.xnb
+C:\Users\tagli\RiderProjects\DungeonExplorer\bin\Debug\net8.0-windows\Content\Textures\treasure.xnb
+C:\Users\tagli\RiderProjects\DungeonExplorer\bin\Debug\net8.0-windows\Content\Textures\wall.xnb

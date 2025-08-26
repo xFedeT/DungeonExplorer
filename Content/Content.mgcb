@@ -12,4 +12,26 @@
 
 
 #---------------------------------- Content ---------------------------------#
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/build:Fonts/DefaultFont.spritefont
 
+/importer:TextureImporter
+/processor:TextureProcessor
+/build:Textures/player.png
+
+/importer:TextureImporter
+/processor:TextureProcessor
+/build:Textures/enemy.png
+
+/importer:TextureImporter
+/processor:TextureProcessor
+/build:Textures/wall.png
+
+/importer:TextureImporter
+/processor:TextureProcessor
+/build:Textures/floor.png
+
+/importer:TextureImporter
+/processor:TextureProcessor
+/build:Textures/treasure.png

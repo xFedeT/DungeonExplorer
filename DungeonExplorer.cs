@@ -8,13 +8,14 @@ using DungeonExplorer.Entities;
 using DungeonExplorer.Data;
 using System.Collections.Generic;
 using System;
+using System.Diagnostics;
 
 namespace DungeonExplorer
 {
     /// <summary>
     /// Classe principale del gioco che gestisce il loop di gioco e coordina tutti i sistemi
     /// </summary>
-    public class Game1 : Game
+    public class DungeonExplorer : Game
     {
         private GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch;
@@ -44,36 +45,53 @@ namespace DungeonExplorer
         private SpriteFont _font;
 
         // Game State
-        private bool _gameStarted = false;
+        private bool _gameStarted;
 
-        public Game1()
+        public DungeonExplorer()
         {
+            Console.WriteLine("Starting...");
             _graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
             
             // Set window size
-            _graphics.PreferredBackBufferWidth = 1200;
-            _graphics.PreferredBackBufferHeight = 800;
+            _graphics.PreferredBackBufferWidth = 1920;
+            _graphics.PreferredBackBufferHeight = 1080;
         }
 
         protected override void Initialize()
         {
             // Initialize core systems
+            Console.WriteLine("Launching Input Manager...");
             _inputManager = new InputManager();
+            Console.WriteLine("Done.");
+            Console.WriteLine("Creating Camera...");
             _camera = new Camera2D(GraphicsDevice.Viewport);
+            Console.WriteLine("Done.");
+            Console.WriteLine("Launching Game Manager...");
             _gameManager = new GameManager();
-
+            Console.WriteLine("Done.");
+            
             // Initialize ECS systems
+            Console.WriteLine("Launching Render System...");
             _renderSystem = new RenderSystem();
+            Console.WriteLine("Done.");
+            Console.WriteLine("Launching Movement System...");
             _movementSystem = new MovementSystem();
+            Console.WriteLine("Done.");
+            Console.WriteLine("Launching AI System...");
             _aiSystem = new AISystem();
+            Console.WriteLine("Done.");
+            Console.WriteLine("Launching Collision System...");
             _collisionSystem = new CollisionSystem();
+            Console.WriteLine("Done.");
 
             // Initialize collections
+            Console.WriteLine("Initializing Textures...");
             _enemies = new List<Enemy>();
             _treasures = new List<Treasure>();
             _textures = new Dictionary<string, Texture2D>();
+            Console.WriteLine("Done.");
 
             base.Initialize();
         }

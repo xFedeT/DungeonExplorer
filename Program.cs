@@ -1,2 +1,2 @@
-﻿using var game = new DungeonExplorer.Game1();
+﻿using var game = new DungeonExplorer.DungeonExplorer();
 game.Run();
