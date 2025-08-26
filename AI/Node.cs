@@ -1,50 +1,48 @@
 ﻿// ============================================
-// Node.cs - Nodo per l'algoritmo A*
+// Node.cs - Pathfinding node for A* algorithm
 // ============================================
-using Microsoft.Xna.Framework;
 using System;
 
 namespace DungeonExplorer.AI
 {
     /// <summary>
-    /// Rappresenta un nodo nella griglia per l'algoritmo A*
+    /// Represents a node in the pathfinding grid
     /// </summary>
-    public class Node : IComparable<Node>
+    public class Node : IEquatable<Node>
     {
-        public Vector2 Position { get; set; }
-        public float GCost { get; set; }  // Distanza dal nodo di partenza
-        public float HCost { get; set; }  // Distanza euristica dal target
-        public float FCost => GCost + HCost; // Costo totale
-        public Node Parent { get; set; }
-        public bool IsWalkable { get; set; }
+        public int X { get; set; }
+        public int Y { get; set; }
+        public float GCost { get; set; } // Distance from start
+        public float HCost { get; set; } // Distance to end (heuristic)
+        public float FCost => GCost + HCost; // Total cost
 
-        public Node(Vector2 position, bool isWalkable = true)
+        public Node(int x, int y)
         {
-            Position = position;
-            IsWalkable = isWalkable;
+            X = x;
+            Y = y;
             GCost = float.MaxValue;
-            HCost = 0f;
-            Parent = null;
+            HCost = 0;
         }
 
-        public int CompareTo(Node other)
+        public bool Equals(Node other)
         {
-            int result = FCost.CompareTo(other.FCost);
-            if (result == 0)
-                result = HCost.CompareTo(other.HCost);
-            return result;
+            if (other == null) return false;
+            return X == other.X && Y == other.Y;
         }
 
         public override bool Equals(object obj)
         {
-            if (obj is Node other)
-                return Position == other.Position;
-            return false;
+            return Equals(obj as Node);
         }
 
         public override int GetHashCode()
         {
-            return Position.GetHashCode();
+            return HashCode.Combine(X, Y);
+        }
+
+        public override string ToString()
+        {
+            return $"Node({X}, {Y}) - F:{FCost:F1} G:{GCost:F1} H:{HCost:F1}";
         }
     }
 }

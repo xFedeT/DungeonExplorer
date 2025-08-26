@@ -268,8 +268,8 @@ namespace DungeonExplorer.World
             if (roomA == null || roomB == null) return new List<Vector2>();
 
             // Usa i centri delle stanze come punti di partenza e arrivo
-            Vector2 startPoint = roomA.GetCenter();
-            Vector2 endPoint = roomB.GetCenter();
+            Vector2 startPoint = roomA.Center;
+            Vector2 endPoint = roomB.Center;
 
             // Implementazione semplificata - in una versione completa useresti A*
             var path = new List<Vector2> { startPoint, endPoint };

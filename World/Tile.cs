@@ -1,5 +1,5 @@
 ﻿// ============================================
-// Tile.cs - Rappresenta una singola tile del mondo
+// Tile.cs - Represents a single tile in the world
 // ============================================
 using Microsoft.Xna.Framework;
 
@@ -14,7 +14,7 @@ namespace DungeonExplorer.World
     }
 
     /// <summary>
-    /// Rappresenta una singola tile nel dungeon
+    /// Represents a single tile in the dungeon
     /// </summary>
     public class Tile
     {
@@ -25,6 +25,13 @@ namespace DungeonExplorer.World
         public Color Tint { get; set; }
         public bool IsExplored { get; set; }
         public bool IsVisible { get; set; }
+        public bool IsStartPosition { get; set; }
+        public bool IsEndPosition { get; set; }
+        public int RoomId { get; set; } = -1;
+
+        public Tile(TileType type, int x, int y) : this(type, new Vector2(x, y))
+        {
+        }
 
         public Tile(TileType type, Vector2 position)
         {
@@ -33,8 +40,10 @@ namespace DungeonExplorer.World
             Tint = Color.White;
             IsExplored = false;
             IsVisible = false;
+            IsStartPosition = false;
+            IsEndPosition = false;
 
-            // Imposta le proprietà base in base al tipo
+            // Set base properties based on type
             switch (type)
             {
                 case TileType.Wall:
@@ -59,6 +68,11 @@ namespace DungeonExplorer.World
         {
             IsVisible = visible;
             if (visible) IsExplored = true;
+        }
+
+        public override string ToString()
+        {
+            return $"Tile at ({Position.X}, {Position.Y}) - Type: {Type}, Walkable: {IsWalkable}";
         }
     }
 }

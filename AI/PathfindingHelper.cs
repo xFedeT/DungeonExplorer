@@ -1,41 +1,95 @@
 ﻿// ============================================
-// PathfindingHelper.cs - Utility per pathfinding
+// PathfindingHelper.cs - Utilities for pathfinding
 // ============================================
 using Microsoft.Xna.Framework;
-using DungeonExplorer.Entities;
 using DungeonExplorer.World;
-using System.Collections.Generic;
 using System;
+using System.Collections.Generic;
 
 namespace DungeonExplorer.AI
 {
     /// <summary>
-    /// Classe di utilità per operazioni di pathfinding comuni
+    /// Static helper methods for pathfinding operations
     /// </summary>
     public static class PathfindingHelper
     {
-        private const int TILE_SIZE = 32;
+        /// <summary>
+        /// Calculates Manhattan distance between two points
+        /// </summary>
+        public static float ManhattanDistance(Vector2 a, Vector2 b)
+        {
+            return Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y);
+        }
 
         /// <summary>
-        /// Verifica se c'è una linea di vista diretta tra due punti
+        /// Calculates Euclidean distance between two points
         /// </summary>
-        public static bool HasLineOfSight(Vector2 from, Vector2 to, Dungeon dungeon)
+        public static float EuclideanDistance(Vector2 a, Vector2 b)
         {
-            Vector2 direction = Vector2.Normalize(to - from);
-            float distance = Vector2.Distance(from, to);
-            int steps = (int)(distance / (TILE_SIZE / 4f)); // Check ogni 8 pixel
+            return Vector2.Distance(a, b);
+        }
 
-            for (int i = 0; i <= steps; i++)
+        /// <summary>
+        /// Calculates diagonal distance (allows diagonal movement)
+        /// </summary>
+        public static float DiagonalDistance(Vector2 a, Vector2 b)
+        {
+            float dx = Math.Abs(a.X - b.X);
+            float dy = Math.Abs(a.Y - b.Y);
+            return Math.Max(dx, dy);
+        }
+
+        /// <summary>
+        /// Gets the cardinal direction from one point to another
+        /// </summary>
+        public static Vector2 GetDirection(Vector2 from, Vector2 to)
+        {
+            var direction = to - from;
+            if (direction == Vector2.Zero) return Vector2.Zero;
+
+            direction.Normalize();
+            return direction;
+        }
+
+        /// <summary>
+        /// Snaps a direction vector to the nearest cardinal direction
+        /// </summary>
+        public static Vector2 SnapToCardinalDirection(Vector2 direction)
+        {
+            if (direction == Vector2.Zero) return Vector2.Zero;
+
+            float absX = Math.Abs(direction.X);
+            float absY = Math.Abs(direction.Y);
+
+            if (absX > absY)
             {
-                float t = i / (float)steps;
-                Vector2 checkPos = Vector2.Lerp(from, to, t);
-                Vector2 gridPos = new Vector2(
-                    (float)Math.Floor(checkPos.X / TILE_SIZE),
-                    (float)Math.Floor(checkPos.Y / TILE_SIZE)
-                );
+                return new Vector2(Math.Sign(direction.X), 0);
+            }
+            else
+            {
+                return new Vector2(0, Math.Sign(direction.Y));
+            }
+        }
 
-                var tile = dungeon.GetTile((int)gridPos.X, (int)gridPos.Y);
-                if (tile == null || !tile.IsWalkable)
+        /// <summary>
+        /// Checks if a path is clear between two points using simple line-of-sight
+        /// </summary>
+        public static bool IsPathClear(Vector2 start, Vector2 end, Dungeon dungeon, int tileSize = 32)
+        {
+            var startGrid = new Vector2((int)(start.X / tileSize), (int)(start.Y / tileSize));
+            var endGrid = new Vector2((int)(end.X / tileSize), (int)(end.Y / tileSize));
+
+            var current = startGrid;
+            var direction = GetDirection(startGrid, endGrid);
+            var distance = Vector2.Distance(startGrid, endGrid);
+
+            for (float t = 0; t <= distance; t += 0.5f)
+            {
+                var checkPos = startGrid + direction * t;
+                int x = (int)Math.Round(checkPos.X);
+                int y = (int)Math.Round(checkPos.Y);
+
+                if (!dungeon.IsWalkable(x, y))
                     return false;
             }
 
@@ -43,117 +97,172 @@ namespace DungeonExplorer.AI
         }
 
         /// <summary>
-        /// Trova la posizione più vicina raggiungibile dal target
-        /// Utile quando il target esatto non è raggiungibile
+        /// Finds the nearest walkable position to a target position
         /// </summary>
-        public static Vector2 FindNearestWalkablePosition(Vector2 target, Dungeon dungeon, int maxRadius = 5)
+        public static Vector2? FindNearestWalkablePosition(Vector2 target, Dungeon dungeon, int maxRadius = 5, int tileSize = 32)
         {
-            Vector2 gridTarget = new Vector2(
-                (float)Math.Floor(target.X / TILE_SIZE),
-                (float)Math.Floor(target.Y / TILE_SIZE)
-            );
+            var gridPos = new Vector2((int)(target.X / tileSize), (int)(target.Y / tileSize));
 
-            // Se la posizione target è già walkable, ritornala
-            var targetTile = dungeon.GetTile((int)gridTarget.X, (int)gridTarget.Y);
-            if (targetTile != null && targetTile.IsWalkable)
+            // Check if the target position is already walkable
+            if (dungeon.IsWalkable((int)gridPos.X, (int)gridPos.Y))
                 return target;
 
-            // Cerca in cerchi concentrici
+            // Spiral outward from the target position
             for (int radius = 1; radius <= maxRadius; radius++)
             {
                 for (int dx = -radius; dx <= radius; dx++)
                 {
                     for (int dy = -radius; dy <= radius; dy++)
                     {
-                        if (Math.Abs(dx) == radius || Math.Abs(dy) == radius)
+                        // Only check positions on the edge of the current radius
+                        if (Math.Abs(dx) != radius && Math.Abs(dy) != radius)
+                            continue;
+
+                        int x = (int)gridPos.X + dx;
+                        int y = (int)gridPos.Y + dy;
+
+                        if (dungeon.IsWalkable(x, y))
                         {
-                            Vector2 checkPos = gridTarget + new Vector2(dx, dy);
-                            var tile = dungeon.GetTile((int)checkPos.X, (int)checkPos.Y);
-                            
-                            if (tile != null && tile.IsWalkable)
-                            {
-                                return new Vector2(
-                                    checkPos.X * TILE_SIZE + TILE_SIZE / 2f,
-                                    checkPos.Y * TILE_SIZE + TILE_SIZE / 2f
-                                );
-                            }
+                            return new Vector2(x * tileSize + tileSize / 2f, y * tileSize + tileSize / 2f);
                         }
                     }
                 }
             }
 
-            // Se non trova nulla, ritorna la posizione originale
-            return target;
+            return null; // No walkable position found within radius
         }
 
         /// <summary>
-        /// Calcola una posizione di fuga dal player
+        /// Simplifies a path by removing redundant waypoints
         /// </summary>
-        public static Vector2 FindFleePosition(Vector2 from, Vector2 fleeFrom, Dungeon dungeon, float fleeDistance = 128f)
+        public static List<Vector2> SimplifyPath(List<Vector2> path, Dungeon dungeon, float tolerance = 2f)
         {
-            Vector2 fleeDirection = Vector2.Normalize(from - fleeFrom);
-            Vector2 fleeTarget = from + fleeDirection * fleeDistance;
-            
-            return FindNearestWalkablePosition(fleeTarget, dungeon);
-        }
+            if (path.Count <= 2) return new List<Vector2>(path);
 
-        /// <summary>
-        /// Trova una posizione di intercettazione basata sulla velocità del target
-        /// </summary>
-        public static Vector2 CalculateInterceptPosition(Vector2 from, Vector2 targetPos, Vector2 targetVelocity, float interceptorSpeed)
-        {
-            Vector2 toTarget = targetPos - from;
-            float distance = toTarget.Length();
-            
-            if (targetVelocity.Length() == 0 || interceptorSpeed <= 0)
-                return targetPos;
+            var simplified = new List<Vector2> { path[0] };
 
-            // Calcola il tempo di intercettazione usando la formula quadratica
-            float a = targetVelocity.LengthSquared() - interceptorSpeed * interceptorSpeed;
-            float b = 2 * Vector2.Dot(toTarget, targetVelocity);
-            float c = toTarget.LengthSquared();
-
-            float discriminant = b * b - 4 * a * c;
-
-            if (discriminant < 0)
-                return targetPos; // Nessuna intercettazione possibile
-
-            float t1 = (-b - MathF.Sqrt(discriminant)) / (2 * a);
-            float t2 = (-b + MathF.Sqrt(discriminant)) / (2 * a);
-
-            float t = t1 > 0 ? t1 : t2;
-            if (t < 0) return targetPos;
-
-            return targetPos + targetVelocity * t;
-        }
-
-        /// <summary>
-        /// Genera punti di pattuglia casuali in una zona
-        /// </summary>
-        public static List<Vector2> GeneratePatrolPoints(Vector2 center, Dungeon dungeon, int count = 4, float radius = 96f)
-        {
-            var points = new List<Vector2>();
-            var random = new Random();
-
-            for (int i = 0; i < count * 3; i++) // Tenta più volte per trovare punti validi
+            for (int i = 1; i < path.Count - 1; i++)
             {
-                float angle = random.NextSingle() * MathF.PI * 2f;
-                float distance = random.NextSingle() * radius;
-                
-                Vector2 point = center + new Vector2(
-                    MathF.Cos(angle) * distance,
-                    MathF.Sin(angle) * distance
-                );
+                var prev = simplified[simplified.Count - 1];
+                var current = path[i];
+                var next = path[i + 1];
 
-                Vector2 walkablePoint = FindNearestWalkablePosition(point, dungeon, 3);
-                if (Vector2.Distance(walkablePoint, point) < TILE_SIZE * 2) // Abbastanza vicino al punto desiderato
+                // Check if we can skip this waypoint
+                if (Vector2.Distance(prev, next) <= tolerance * 2 && IsPathClear(prev, next, dungeon))
                 {
-                    points.Add(walkablePoint);
-                    if (points.Count >= count) break;
+                    continue; // Skip this waypoint
+                }
+
+                simplified.Add(current);
+            }
+
+            simplified.Add(path[path.Count - 1]);
+            return simplified;
+        }
+
+        /// <summary>
+        /// Calculates the total length of a path
+        /// </summary>
+        public static float CalculatePathLength(List<Vector2> path)
+        {
+            if (path.Count < 2) return 0f;
+
+            float totalLength = 0f;
+            for (int i = 1; i < path.Count; i++)
+            {
+                totalLength += Vector2.Distance(path[i - 1], path[i]);
+            }
+
+            return totalLength;
+        }
+
+        /// <summary>
+        /// Gets a position along a path at a specific distance from the start
+        /// </summary>
+        public static Vector2 GetPositionAlongPath(List<Vector2> path, float distance)
+        {
+            if (path.Count == 0) return Vector2.Zero;
+            if (path.Count == 1 || distance <= 0) return path[0];
+
+            float currentDistance = 0f;
+
+            for (int i = 1; i < path.Count; i++)
+            {
+                var segmentLength = Vector2.Distance(path[i - 1], path[i]);
+
+                if (currentDistance + segmentLength >= distance)
+                {
+                    // The target distance is within this segment
+                    float remainingDistance = distance - currentDistance;
+                    float t = remainingDistance / segmentLength;
+                    return Vector2.Lerp(path[i - 1], path[i], t);
+                }
+
+                currentDistance += segmentLength;
+            }
+
+            // Distance is beyond the end of the path
+            return path[path.Count - 1];
+        }
+
+        /// <summary>
+        /// Checks if two paths intersect
+        /// </summary>
+        public static bool DoPathsIntersect(List<Vector2> pathA, List<Vector2> pathB, float tolerance = 16f)
+        {
+            for (int i = 0; i < pathA.Count - 1; i++)
+            {
+                for (int j = 0; j < pathB.Count - 1; j++)
+                {
+                    if (DoLineSegmentsIntersect(pathA[i], pathA[i + 1], pathB[j], pathB[j + 1], tolerance))
+                    {
+                        return true;
+                    }
                 }
             }
 
-            return points;
+            return false;
+        }
+
+        /// <summary>
+        /// Checks if two line segments intersect within a tolerance
+        /// </summary>
+        private static bool DoLineSegmentsIntersect(Vector2 a1, Vector2 a2, Vector2 b1, Vector2 b2, float tolerance)
+        {
+            // Simple distance-based check for intersection
+            var midA = (a1 + a2) * 0.5f;
+            var midB = (b1 + b2) * 0.5f;
+            
+            return Vector2.Distance(midA, midB) <= tolerance;
+        }
+
+        /// <summary>
+        /// Generates random waypoints around a central position
+        /// </summary>
+        public static List<Vector2> GenerateRandomWaypoints(Vector2 center, int count, float radius, Dungeon dungeon, Random random, int tileSize = 32)
+        {
+            var waypoints = new List<Vector2>();
+
+            for (int i = 0; i < count * 3; i++) // Try more times than needed
+            {
+                if (waypoints.Count >= count) break;
+
+                var angle = (float)(random.NextDouble() * Math.PI * 2);
+                var distance = (float)(random.NextDouble() * radius);
+                var position = center + new Vector2(
+                    (float)Math.Cos(angle) * distance,
+                    (float)Math.Sin(angle) * distance
+                );
+
+                var gridPos = new Vector2((int)(position.X / tileSize), (int)(position.Y / tileSize));
+                
+                if (dungeon.IsWalkable((int)gridPos.X, (int)gridPos.Y))
+                {
+                    waypoints.Add(position);
+                }
+            }
+
+            return waypoints;
         }
     }
 }

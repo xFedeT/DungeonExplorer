@@ -1,232 +1,162 @@
 ﻿// ============================================
-// AStar.cs - Implementazione algoritmo A*
+// AStar.cs - A* Pathfinding implementation
 // ============================================
 using Microsoft.Xna.Framework;
 using DungeonExplorer.World;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System;
 
 namespace DungeonExplorer.AI
 {
     /// <summary>
-    /// Implementazione completa dell'algoritmo A* per pathfinding
+    /// A* pathfinding algorithm implementation
     /// </summary>
     public class AStar
     {
-        private const int TILE_SIZE = 32;
-        
-        // Direzioni di movimento (4-directional)
-        private readonly Vector2[] _directions = new Vector2[]
-        {
-            new Vector2(0, -1), // Su
-            new Vector2(1, 0),  // Destra
-            new Vector2(0, 1),  // Giù
-            new Vector2(-1, 0)  // Sinistra
-        };
+        private readonly int TILE_SIZE = 32;
 
-        // Opzionale: movimento diagonale (8-directional)
-        private readonly Vector2[] _diagonalDirections = new Vector2[]
+        /// <summary>
+        /// Finds the shortest path between two world positions
+        /// </summary>
+        public List<Vector2> FindPath(Vector2 startWorld, Vector2 endWorld, Dungeon dungeon)
         {
-            new Vector2(-1, -1), new Vector2(0, -1), new Vector2(1, -1),
-            new Vector2(-1, 0),                       new Vector2(1, 0),
-            new Vector2(-1, 1),  new Vector2(0, 1),  new Vector2(1, 1)
-        };
+            // Convert world coordinates to grid coordinates
+            var start = WorldToGrid(startWorld);
+            var end = WorldToGrid(endWorld);
 
-        private Dictionary<Vector2, Node> _nodes;
-        private bool _allowDiagonal;
-
-        public AStar(bool allowDiagonal = false)
-        {
-            _allowDiagonal = allowDiagonal;
-            _nodes = new Dictionary<Vector2, Node>();
+            return FindPathGrid(start, end, dungeon);
         }
 
         /// <summary>
-        /// Trova il percorso ottimale tra due punti nel mondo
+        /// Finds the shortest path between two grid positions
         /// </summary>
-        /// <param name="start">Posizione di partenza in pixel</param>
-        /// <param name="goal">Posizione obiettivo in pixel</param>
-        /// <param name="dungeon">Il dungeon per controllare le collisioni</param>
-        /// <returns>Lista di posizioni Vector2 che rappresentano il percorso</returns>
-        public List<Vector2> FindPath(Vector2 start, Vector2 goal, Dungeon dungeon)
+        public List<Vector2> FindPathGrid(Vector2 start, Vector2 end, Dungeon dungeon)
         {
-            // Converte le posizioni da pixel a coordinate griglia
-            Vector2 startGrid = WorldToGrid(start);
-            Vector2 goalGrid = WorldToGrid(goal);
+            var startNode = new Node((int)start.X, (int)start.Y);
+            var endNode = new Node((int)end.X, (int)end.Y);
 
-            // Verifica che start e goal siano validi
-            if (!IsValidPosition(startGrid, dungeon) || !IsValidPosition(goalGrid, dungeon))
-                return null;
+            // Check if start and end positions are valid
+            if (!dungeon.IsWalkable(startNode.X, startNode.Y) || !dungeon.IsWalkable(endNode.X, endNode.Y))
+            {
+                return new List<Vector2>();
+            }
 
-            // Inizializza le strutture dati
-            _nodes.Clear();
-            var openSet = new SortedSet<Node>();
-            var closedSet = new HashSet<Vector2>();
+            var openSet = new List<Node> { startNode };
+            var closedSet = new HashSet<Node>();
+            var cameFrom = new Dictionary<Node, Node>();
 
-            // Crea il nodo di partenza
-            Node startNode = GetOrCreateNode(startGrid, dungeon);
-            startNode.GCost = 0f;
-            startNode.HCost = CalculateHeuristic(startGrid, goalGrid);
-            
-            openSet.Add(startNode);
+            startNode.GCost = 0;
+            startNode.HCost = GetDistance(startNode, endNode);
 
             while (openSet.Count > 0)
             {
-                // Prende il nodo con FCost più basso
-                Node currentNode = openSet.First();
-                openSet.Remove(currentNode);
-                closedSet.Add(currentNode.Position);
+                // Get node with lowest F cost
+                var currentNode = openSet.OrderBy(n => n.FCost).ThenBy(n => n.HCost).First();
 
-                // Verifica se abbiamo raggiunto l'obiettivo
-                if (currentNode.Position == goalGrid)
+                openSet.Remove(currentNode);
+                closedSet.Add(currentNode);
+
+                // Check if we reached the destination
+                if (currentNode.Equals(endNode))
                 {
-                    return ReconstructPath(currentNode);
+                    return ReconstructPath(cameFrom, currentNode, dungeon);
                 }
 
-                // Esplora i nodi vicini
-                var directions = _allowDiagonal ? _diagonalDirections : _directions;
-                
-                foreach (Vector2 direction in directions)
+                // Check all neighbors
+                foreach (var neighbor in GetNeighbors(currentNode, dungeon))
                 {
-                    Vector2 neighborPos = currentNode.Position + direction;
-                    
-                    // Salta se già visitato
-                    if (closedSet.Contains(neighborPos))
+                    if (closedSet.Contains(neighbor))
                         continue;
 
-                    // Salta se non è una posizione valida
-                    if (!IsValidPosition(neighborPos, dungeon))
-                        continue;
+                    var tentativeGCost = currentNode.GCost + GetDistance(currentNode, neighbor);
 
-                    Node neighbor = GetOrCreateNode(neighborPos, dungeon);
-                    
-                    // Calcola il nuovo G cost
-                    float movementCost = _allowDiagonal && IsDiagonal(direction) ? 1.414f : 1f; // √2 per diagonali
-                    float tentativeGCost = currentNode.GCost + movementCost;
-
-                    // Se questo percorso verso il neighbor è migliore
-                    if (tentativeGCost < neighbor.GCost)
+                    if (!openSet.Contains(neighbor))
                     {
-                        // Rimuove dalla open set se già presente (per aggiornare la posizione)
-                        openSet.Remove(neighbor);
-                        
-                        neighbor.Parent = currentNode;
-                        neighbor.GCost = tentativeGCost;
-                        neighbor.HCost = CalculateHeuristic(neighborPos, goalGrid);
-                        
                         openSet.Add(neighbor);
                     }
+                    else if (tentativeGCost >= neighbor.GCost)
+                    {
+                        continue;
+                    }
+
+                    cameFrom[neighbor] = currentNode;
+                    neighbor.GCost = tentativeGCost;
+                    neighbor.HCost = GetDistance(neighbor, endNode);
                 }
             }
 
-            // Nessun percorso trovato
-            return null;
+            // No path found
+            return new List<Vector2>();
         }
 
-        private Node GetOrCreateNode(Vector2 position, Dungeon dungeon)
+        private List<Node> GetNeighbors(Node node, Dungeon dungeon)
         {
-            if (!_nodes.TryGetValue(position, out Node node))
+            var neighbors = new List<Node>();
+            var directions = new[]
             {
-                bool isWalkable = IsWalkable(position, dungeon);
-                node = new Node(position, isWalkable);
-                _nodes[position] = node;
+                new Vector2(0, -1), // Up
+                new Vector2(1, 0), // Right
+                new Vector2(0, 1), // Down
+                new Vector2(-1, 0) // Left
+            };
+
+            foreach (var direction in directions)
+            {
+                int x = node.X + (int)direction.X;
+                int y = node.Y + (int)direction.Y;
+
+                if (dungeon.IsWalkable(x, y))
+                {
+                    neighbors.Add(new Node(x, y));
+                }
             }
-            return node;
+
+            return neighbors;
         }
 
-        private bool IsValidPosition(Vector2 gridPos, Dungeon dungeon)
+        private float GetDistance(Node nodeA, Node nodeB)
         {
-            // Verifica i bounds
-            if (gridPos.X < 0 || gridPos.Y < 0 || 
-                gridPos.X >= dungeon.Width || gridPos.Y >= dungeon.Height)
-                return false;
+            int distX = Math.Abs(nodeA.X - nodeB.X);
+            int distY = Math.Abs(nodeA.Y - nodeB.Y);
 
-            return IsWalkable(gridPos, dungeon);
+            // Manhattan distance (since we only allow 4-directional movement)
+            return distX + distY;
         }
 
-        private bool IsWalkable(Vector2 gridPos, Dungeon dungeon)
-        {
-            var tile = dungeon.GetTile((int)gridPos.X, (int)gridPos.Y);
-            return tile != null && tile.IsWalkable;
-        }
-
-        private float CalculateHeuristic(Vector2 from, Vector2 to)
-        {
-            // Distanza Manhattan (più veloce per griglia 4-directional)
-            if (!_allowDiagonal)
-                return Math.Abs(from.X - to.X) + Math.Abs(from.Y - to.Y);
-            
-            // Distanza Euclidea (migliore per movimento diagonale)
-            return Vector2.Distance(from, to);
-        }
-
-        private bool IsDiagonal(Vector2 direction)
-        {
-            return direction.X != 0 && direction.Y != 0;
-        }
-
-        private List<Vector2> ReconstructPath(Node goalNode)
+        private List<Vector2> ReconstructPath(Dictionary<Node, Node> cameFrom, Node endNode, Dungeon dungeon)
         {
             var path = new List<Vector2>();
-            Node current = goalNode;
+            var currentNode = endNode;
 
-            // Ricostruisce il percorso andando all'indietro dai parent
-            while (current != null)
+            while (cameFrom.ContainsKey(currentNode))
             {
-                // Converte da coordinate griglia a coordinate mondo (centro tile)
-                Vector2 worldPos = GridToWorld(current.Position);
-                path.Add(worldPos);
-                current = current.Parent;
+                // Convert back to world coordinates
+                path.Add(GridToWorld(currentNode.X, currentNode.Y));
+                currentNode = cameFrom[currentNode];
             }
 
-            // Inverti il percorso per averlo da start a goal
+            // Add the start position
+            path.Add(GridToWorld(currentNode.X, currentNode.Y));
+
+            // Reverse to get path from start to end
             path.Reverse();
-
-            // Opzionale: ottimizza il percorso rimuovendo nodi ridondanti
-            return OptimizePath(path);
+            return path;
         }
 
-        private List<Vector2> OptimizePath(List<Vector2> path)
-        {
-            if (path.Count <= 2) return path;
-
-            var optimizedPath = new List<Vector2> { path[0] };
-
-            for (int i = 1; i < path.Count - 1; i++)
-            {
-                Vector2 prev = path[i - 1];
-                Vector2 current = path[i];
-                Vector2 next = path[i + 1];
-
-                // Se la direzione cambia, mantieni il punto
-                Vector2 dir1 = Vector2.Normalize(current - prev);
-                Vector2 dir2 = Vector2.Normalize(next - current);
-
-                float dot = Vector2.Dot(dir1, dir2);
-                if (dot < 0.99f) // Non perfettamente allineati
-                {
-                    optimizedPath.Add(current);
-                }
-            }
-
-            optimizedPath.Add(path[path.Count - 1]);
-            return optimizedPath;
-        }
-
-        private Vector2 WorldToGrid(Vector2 worldPos)
+        private Vector2 WorldToGrid(Vector2 worldPosition)
         {
             return new Vector2(
-                (float)Math.Floor(worldPos.X / TILE_SIZE),
-                (float)Math.Floor(worldPos.Y / TILE_SIZE)
+                (int)Math.Floor(worldPosition.X / TILE_SIZE),
+                (int)Math.Floor(worldPosition.Y / TILE_SIZE)
             );
         }
 
-        private Vector2 GridToWorld(Vector2 gridPos)
+        private Vector2 GridToWorld(int gridX, int gridY)
         {
             return new Vector2(
-                gridPos.X * TILE_SIZE + TILE_SIZE / 2f,
-                gridPos.Y * TILE_SIZE + TILE_SIZE / 2f
+                gridX * TILE_SIZE + TILE_SIZE / 2f,
+                gridY * TILE_SIZE + TILE_SIZE / 2f
             );
         }
     }
