@@ -1,8 +1,10 @@
 ﻿using Microsoft.Xna.Framework;
 using DungeonExplorer.Entities;
 using DungeonExplorer.World;
+using DungeonExplorer.Components;
 using System.Collections.Generic;
 using System.Linq;
+using System;
 
 namespace DungeonExplorer.Systems
 {
@@ -25,7 +27,11 @@ namespace DungeonExplorer.Systems
             for (int i = enemies.Count - 1; i >= 0; i--)
             {
                 var enemy = enemies[i];
-                if (enemy?.Health == null || enemy.Health.CurrentHealth <= 0) continue;
+                if (enemy?.Health == null || enemy.Health.CurrentHealth <= 0) 
+                {
+                    enemies.RemoveAt(i);
+                    continue;
+                }
 
                 var enemyBounds = enemy.GetBounds();
 
@@ -48,7 +54,11 @@ namespace DungeonExplorer.Systems
             for (int i = treasures.Count - 1; i >= 0; i--)
             {
                 var treasure = treasures[i];
-                if (treasure == null) continue;
+                if (treasure == null || treasure.IsCollected) 
+                {
+                    treasures.RemoveAt(i);
+                    continue;
+                }
 
                 var treasureBounds = treasure.GetBounds();
 
@@ -64,7 +74,7 @@ namespace DungeonExplorer.Systems
         /// </summary>
         public void CheckWorldCollisions(Entity entity, Dungeon dungeon)
         {
-            if (entity?.Transform == null || dungeon?.Tiles == null) return;
+            if (entity?.Transform == null || dungeon == null) return;
 
             var entityBounds = entity.GetBounds();
             var originalPosition = entity.Transform.Position;
@@ -88,8 +98,7 @@ namespace DungeonExplorer.Systems
             {
                 for (int y = topTile; y <= bottomTile; y++)
                 {
-                    var tile = dungeon.Tiles[x, y];
-                    if (tile != null && tile.Type == TileType.Wall)
+                    if (dungeon.IsWalkable(x, y) == false) // Use dungeon's IsWalkable method
                     {
                         var tileBounds = new Rectangle(
                             x * (int)TILE_SIZE,
@@ -160,20 +169,13 @@ namespace DungeonExplorer.Systems
                 knockbackDirection = Vector2.UnitX; // Default direction
 
             // Applica danno al giocatore
-            int damage = enemy.AI?.AttackDamage ?? 10;
-            player.Health.TakeDamage(damage);
+            int damage = enemy.Damage;
+            bool playerDied = player.Health.TakeDamage(damage);
 
             // Applica knockback al giocatore
             if (player.Movement != null)
             {
-                player.Movement.KnockbackForce = 200f;
                 player.Transform.Position += knockbackDirection * 20f; // Knockback immediato
-            }
-
-            // Feedback visuale (se implementato)
-            if (player.Render != null)
-            {
-                player.Render.FlashTimer = 0.2f; // Flash rosso per indicare danno
             }
 
             // Il nemico può anche subire un piccolo knockback
@@ -188,18 +190,14 @@ namespace DungeonExplorer.Systems
         /// </summary>
         private void HandlePlayerTreasureCollision(Player player, Treasure treasure, List<Treasure> treasures, int index)
         {
-            // Rimuovi il tesoro dalla lista
+            // Colleziona il tesoro
+            treasure.Collect();
+            
+            // Aggiungi al punteggio del giocatore
+            player.CollectTreasure(treasure.Value);
+            
+            // Rimuovi dalla lista
             treasures.RemoveAt(index);
-
-            // Aggiungi punti (questo dovrebbe probabilmente essere gestito dal GameManager)
-            // Per ora assumiamo che il treasure abbia un valore
-            int value = treasure.Value ?? 100;
-
-            // Qui potresti emettere un evento o chiamare direttamente il GameManager
-            // GameManager.CollectTreasure(value);
-
-            // Feedback visuale/audio per la raccolta del tesoro
-            // SpawnParticleEffect(treasure.Transform.Position, ParticleType.TreasureCollect);
         }
 
         /// <summary>
@@ -225,12 +223,12 @@ namespace DungeonExplorer.Systems
                 if (overlapLeft < overlapRight)
                 {
                     // Sposta a sinistra
-                    entity.Transform.Position.X = wallBounds.Left - entityBounds.Width * 0.5f;
+                    entity.Transform.Position = new Vector2(wallBounds.Left - entityBounds.Width * 0.5f, entity.Transform.Position.Y);
                 }
                 else
                 {
                     // Sposta a destra
-                    entity.Transform.Position.X = wallBounds.Right + entityBounds.Width * 0.5f;
+                    entity.Transform.Position = new Vector2(wallBounds.Right + entityBounds.Width * 0.5f, entity.Transform.Position.Y);
                 }
             }
             else
@@ -239,12 +237,12 @@ namespace DungeonExplorer.Systems
                 if (overlapTop < overlapBottom)
                 {
                     // Sposta in alto
-                    entity.Transform.Position.Y = wallBounds.Top - entityBounds.Height * 0.5f;
+                    entity.Transform.Position = new Vector2(entity.Transform.Position.X, wallBounds.Top - entityBounds.Height * 0.5f);
                 }
                 else
                 {
                     // Sposta in basso
-                    entity.Transform.Position.Y = wallBounds.Bottom + entityBounds.Height * 0.5f;
+                    entity.Transform.Position = new Vector2(entity.Transform.Position.X, wallBounds.Bottom + entityBounds.Height * 0.5f);
                 }
             }
 
@@ -315,20 +313,9 @@ namespace DungeonExplorer.Systems
             {
                 for (int y = topTile; y <= bottomTile; y++)
                 {
-                    var tile = dungeon.Tiles[x, y];
-                    if (tile != null && tile.Type == TileType.Wall)
+                    if (!dungeon.IsWalkable(x, y))
                     {
-                        var tileBounds = new Rectangle(
-                            x * (int)TILE_SIZE,
-                            y * (int)TILE_SIZE,
-                            (int)TILE_SIZE,
-                            (int)TILE_SIZE
-                        );
-
-                        if (testBounds.Intersects(tileBounds))
-                        {
-                            return false;
-                        }
+                        return false;
                     }
                 }
             }
@@ -359,8 +346,7 @@ namespace DungeonExplorer.Systems
 
                 if (tileX >= 0 && tileX < dungeon.Width && tileY >= 0 && tileY < dungeon.Height)
                 {
-                    var tile = dungeon.Tiles[tileX, tileY];
-                    if (tile != null && tile.Type == TileType.Wall)
+                    if (!dungeon.IsWalkable(tileX, tileY))
                     {
                         hitPoint = currentPoint;
                         return true; // Hit detected
@@ -396,20 +382,9 @@ namespace DungeonExplorer.Systems
             {
                 for (int y = topTile; y <= bottomTile && !wouldCollide; y++)
                 {
-                    var tile = dungeon.Tiles[x, y];
-                    if (tile != null && tile.Type == TileType.Wall)
+                    if (!dungeon.IsWalkable(x, y))
                     {
-                        var tileBounds = new Rectangle(
-                            x * (int)TILE_SIZE,
-                            y * (int)TILE_SIZE,
-                            (int)TILE_SIZE,
-                            (int)TILE_SIZE
-                        );
-
-                        if (futureBounds.Intersects(tileBounds))
-                        {
-                            wouldCollide = true;
-                        }
+                        wouldCollide = true;
                     }
                 }
             }
